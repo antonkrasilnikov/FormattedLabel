@@ -1,0 +1,14 @@
+{
+  "pins" : [
+    {
+      "identity" : "urlimageview",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/antonkrasilnikov/UrlImageView.git",
+      "state" : {
+        "revision" : "a23a647ed9db80c3f375357bc846eda001430445",
+        "version" : "1.0.1"
+      }
+    }
+  ],
+  "version" : 2
+}
