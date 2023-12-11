@@ -21,11 +21,14 @@ extension String {
 extension UIView {
 
     func snapshot(scale: CGFloat = 0, isOpaque: Bool = false, afterScreenUpdates: Bool = true) -> UIImage? {
-       UIGraphicsBeginImageContextWithOptions(bounds.size, isOpaque, scale)
-       drawHierarchy(in: bounds, afterScreenUpdates: afterScreenUpdates)
-       let image = UIGraphicsGetImageFromCurrentImageContext()
-       UIGraphicsEndImageContext()
-       return image
+        guard bounds.width > 0, bounds.height > 0 else {
+            return nil
+        }
+        UIGraphicsBeginImageContextWithOptions(bounds.size, isOpaque, scale)
+        drawHierarchy(in: bounds, afterScreenUpdates: afterScreenUpdates)
+        let image = UIGraphicsGetImageFromCurrentImageContext()
+        UIGraphicsEndImageContext()
+        return image
     }
 }
 
