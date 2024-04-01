@@ -70,7 +70,7 @@ open class FormattedLabel: UILabel {
 
     open override var font: UIFont! {
         didSet {
-            guard baseFont != oldValue else { return }
+            guard baseFont != font else { return }
             self.baseFont = font
             if notParsedString?.isEmpty == false {
                 _update()
