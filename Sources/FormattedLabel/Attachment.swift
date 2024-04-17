@@ -280,7 +280,7 @@ class FormattedLabelAttachment {
         let attachment = NSTextAttachment()
         attachment.image = image
         let attachSize = CGSize(width: image.size.width*font.lineHeight/image.size.height, height: font.lineHeight)
-        attachment.bounds = .init(x: 0, y: attributes[.imageAligment] == "baseline" ? 0 : (font.ascender - attachSize.height)/2, width: attachSize.width, height: attachSize.height)
+        attachment.bounds = .init(x: 0, y: attributes[.imageAligment] == "baseline" ? 0 : (font.xHeight - attachSize.height)/2, width: attachSize.width, height: attachSize.height)
         return attachment
     }
 
