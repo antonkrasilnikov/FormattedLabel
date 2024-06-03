@@ -69,12 +69,16 @@ open class FormattedLabel: UILabel {
     }
 
     open override var font: UIFont! {
-        didSet {
-            guard baseFont != font else { return }
-            self.baseFont = font
+        set {
+            guard baseFont != newValue else { return }
+            self.baseFont = newValue
             if notParsedString?.isEmpty == false {
                 _update()
             }
+        }
+
+        get {
+            baseFont ?? super.font
         }
     }
 
@@ -124,7 +128,7 @@ open class FormattedLabel: UILabel {
         }
 
         attributedText = string
-        //sizeToFit()
+        sizeToFit()
     }
 
     func paragrarhStyle(font: UIFont) -> NSParagraphStyle {
