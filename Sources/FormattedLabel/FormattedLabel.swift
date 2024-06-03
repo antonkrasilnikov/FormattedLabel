@@ -124,7 +124,7 @@ open class FormattedLabel: UILabel {
         }
 
         attributedText = string
-        sizeToFit()
+        //sizeToFit()
     }
 
     func paragrarhStyle(font: UIFont) -> NSParagraphStyle {
