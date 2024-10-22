@@ -170,6 +170,12 @@ enum Attribute: String, CaseIterable {
     case fontScale
 }
 
+enum ImageAligment: String {
+    case center
+    case baseline
+    case capitalCenter
+}
+
 protocol FormattedLabelAttachmentDelegate: AnyObject {
     func attachmentDidLoad(_ attachment: FormattedLabelAttachment)
 }
@@ -280,7 +286,14 @@ class FormattedLabelAttachment {
         let attachment = NSTextAttachment()
         attachment.image = image
         let attachSize = CGSize(width: image.size.width*font.lineHeight/image.size.height, height: font.lineHeight)
-        attachment.bounds = .init(x: 0, y: attributes[.imageAligment] == "baseline" ? 0 : (font.xHeight - attachSize.height)/2, width: attachSize.width, height: attachSize.height)
+        switch attributes[.imageAligment] {
+        case ImageAligment.baseline.rawValue:
+            attachment.bounds = .init(x: 0, y: 0, width: attachSize.width, height: attachSize.height)
+        case ImageAligment.capitalCenter.rawValue:
+            attachment.bounds = .init(x: 0, y: (font.capHeight - attachSize.height)/2, width: attachSize.width, height: attachSize.height)
+        default:
+            attachment.bounds = .init(x: 0, y: (font.xHeight - attachSize.height)/2, width: attachSize.width, height: attachSize.height)
+        }
         return attachment
     }
 

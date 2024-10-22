@@ -12,7 +12,7 @@ import UIKit
 ///     scale                  - related to base font size scale of formatted text;
 ///     url                      - link of image;
 ///     image                - image name in application asset;
-///     imageAligment  - center | baseline, vertical image aligment;
+///     imageAligment  - center | baseline | capitalCenter, vertical image aligment;
 ///     imageScale       - related to formatted text scale;
 ///     inner                  - flag indicates that text should be upon the image (image or url);
 ///     fontScale           - the same with scale;
