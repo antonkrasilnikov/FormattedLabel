@@ -119,7 +119,7 @@ class FormatterParser: NSObject {
                 if let textItem = parse(originString: text, match: match) {
 
                     if let lastRange = items.last?.range,
-                       range.lowerBound > lastRange.upperBound {
+                       range.lowerBound >= lastRange.upperBound {
 
                         let itemRange = lastRange.upperBound..<range.lowerBound
                         let item = FormattedLabelAttachment(attributes: [.text : String(text[itemRange])],
