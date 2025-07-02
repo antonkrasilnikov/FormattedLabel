@@ -7,12 +7,14 @@ class HtmlTagParser: NSObject {
         case font
         case scale
         case url
+        case src
     }
 
     enum Tag: String, CaseIterable {
         case text
         case font
         case image
+        case img
     }
 
     class Item {
@@ -36,13 +38,13 @@ class HtmlTagParser: NSObject {
             switch tag.0 {
             case .font, .text:
                 attributes[.text] = tag.1.replacingOccurrences(of: ">", with: "\\>").replacingOccurrences(of: "<", with: "\\<")
-            case .image:
+            case .image,.img:
                 attributes[.url] = tag.1.replacingOccurrences(of: "\"", with: "")
             }
 
             for (attribute,value) in self.attributes {
 
-                if attribute == .url && tag.0 == .image {
+                if (attribute == .url && tag.0 == .image) || (attribute == .src && tag.0 == .img) {
                     continue
                 }
 
@@ -70,7 +72,7 @@ class HtmlTagParser: NSObject {
             case .font, .text:
                 let text = tag.1.replacingOccurrences(of: ">", with: "\\>").replacingOccurrences(of: "<", with: "\\<")
                 valuedString += "text=\"\(text)\""
-            case .image:
+            case .image,.img:
                 valuedString += "url=\(tag.1.replacingOccurrences(of: "\"", with: ""))"
             }
 
@@ -138,6 +140,13 @@ class HtmlTagParser: NSObject {
         switch tag {
         case .image:
             if let url = value(attribute: .url, in: tagString, range: tagRange) {
+                obj = url
+                itemRange = range
+            }else{
+                return nil
+            }
+        case .img:
+            if let url = value(attribute: .src, in: tagString, range: tagRange) {
                 obj = url
                 itemRange = range
             }else{
