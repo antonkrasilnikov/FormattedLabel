@@ -236,6 +236,6 @@ class HtmlTagParser: NSObject {
     }
 
     class func isTagged(text: String) -> Bool {
-        Tag.allCases.first(where: { text.range(of: "</\($0.rawValue)>") != nil }) != nil || text.range(of: "/>") != nil
+        Tag.allCases.first(where: { text.range(of: "<\($0.rawValue) ") != nil || text.range(of: "</\($0.rawValue)>") != nil }) != nil || text.range(of: "/>") != nil
     }
 }
