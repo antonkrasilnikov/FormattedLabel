@@ -216,7 +216,7 @@ class FormattedLabelAttachment {
             attributes[.font] = font
             attributes[.foregroundColor] = textColor
             if let style = underlineStyle {
-                attributes[.underlineStyle] = style
+                attributes[.underlineStyle] = style.rawValue
             }
             return attributes
         }
