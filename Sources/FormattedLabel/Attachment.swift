@@ -168,12 +168,24 @@ enum Attribute: String, CaseIterable {
     case imageScale
     case inner
     case fontScale
+    case underline
 }
 
 enum ImageAligment: String {
     case center
     case baseline
     case capitalCenter
+}
+
+enum UnderlineStyle: String {
+    case single
+    case thick
+    case double
+    case patternDot
+    case patternDash
+    case patternDashDot
+    case patternDashDotDot
+    case byWord
 }
 
 protocol FormattedLabelAttachmentDelegate: AnyObject {
@@ -193,6 +205,22 @@ class FormattedLabelAttachment {
     }
 
     private var image: UIImage?
+
+    private struct TextStyle {
+        let font: UIFont
+        let textColor: UIColor
+        let underlineStyle: NSUnderlineStyle?
+
+        var attributes: [NSAttributedString.Key:Any] {
+            var attributes: [NSAttributedString.Key:Any] = [:]
+            attributes[.font] = font
+            attributes[.foregroundColor] = textColor
+            if let style = underlineStyle {
+                attributes[.underlineStyle] = style
+            }
+            return attributes
+        }
+    }
 
     func buildText(baseFont: UIFont, baseTextColor: UIColor) -> NSAttributedString {
 
@@ -224,6 +252,7 @@ class FormattedLabelAttachment {
         let font: UIFont
         var fontSize = baseFont.pointSize
         let color: UIColor
+        let underlineStyle: NSUnderlineStyle?
 
         if let scale = floatValue(attribute: .fontScale) ?? floatValue(attribute: .scale) {
             fontSize *= CGFloat(scale)
@@ -245,18 +274,41 @@ class FormattedLabelAttachment {
             color = baseTextColor
         }
 
+        if let underline = attributes[.underline], let style = UnderlineStyle(rawValue: underline) {
+            switch style {
+            case .single:
+                underlineStyle = .single
+            case .thick:
+                underlineStyle = .thick
+            case .double:
+                underlineStyle = .double
+            case .patternDot:
+                underlineStyle = .patternDot
+            case .patternDash:
+                underlineStyle = .patternDash
+            case .patternDashDot:
+                underlineStyle = .patternDashDot
+            case .patternDashDotDot:
+                underlineStyle = .patternDashDotDot
+            case .byWord:
+                underlineStyle = .byWord
+            }
+        }else{
+            underlineStyle = nil
+        }
+
         if boolValue(attribute: .inner) {
             if let image = image {
                 buildTextOnImage(image: image, font: font, textColor: color).forEach({ string.append($0) })
             }
         }else{
-            buildRawTextAndImage(image: image, font: font, textColor: color).forEach({ string.append($0) })
+            buildRawTextAndImage(image: image, style: .init(font: font, textColor: color, underlineStyle: underlineStyle)).forEach({ string.append($0) })
         }
 
         return string
     }
 
-    func floatValue(attribute: Attribute) -> Float? {
+    private func floatValue(attribute: Attribute) -> Float? {
         if let value = attributes[attribute] {
             if #available(iOS 13.0, *) {
                 return Scanner(string: value).scanFloat()
@@ -269,7 +321,7 @@ class FormattedLabelAttachment {
         return nil
     }
 
-    func boolValue(attribute: Attribute) -> Bool {
+    private func boolValue(attribute: Attribute) -> Bool {
         if let value = attributes[attribute] {
             if #available(iOS 13.0, *) {
                 return Scanner(string: value).scanInt() == 1
@@ -282,7 +334,7 @@ class FormattedLabelAttachment {
         return false
     }
 
-    func imageAttachment(image: UIImage, font: UIFont) -> NSTextAttachment {
+    private func imageAttachment(image: UIImage, font: UIFont) -> NSTextAttachment {
         let attachment = NSTextAttachment()
         attachment.image = image
         let attachSize = CGSize(width: image.size.width*font.lineHeight/image.size.height, height: font.lineHeight)
@@ -297,24 +349,23 @@ class FormattedLabelAttachment {
         return attachment
     }
 
-    func buildRawTextAndImage(image: UIImage?, font: UIFont, textColor: UIColor) -> [NSAttributedString] {
+    private func buildRawTextAndImage(image: UIImage?, style: TextStyle) -> [NSAttributedString] {
 
         var strings: [NSAttributedString] = []
 
         if let text = attributes[.text] {
             strings.append(NSAttributedString(string: text.replacingPlaceholders(),
-                                              attributes: [ NSAttributedString.Key.foregroundColor : textColor,
-                                                            NSAttributedString.Key.font : font ]))
+                                              attributes: style.attributes))
         }
 
         if let image = image {
-            strings.append(.init(attachment: imageAttachment(image: image, font: font)))
+            strings.append(.init(attachment: imageAttachment(image: image, font: style.font)))
         }
 
         return strings
     }
 
-    func buildTextOnImage(image: UIImage, font: UIFont, textColor: UIColor) -> [NSAttributedString] {
+    private func buildTextOnImage(image: UIImage, font: UIFont, textColor: UIColor) -> [NSAttributedString] {
 
         let imageView = UIImageView(image: image)
         imageView.contentMode = .scaleAspectFit
