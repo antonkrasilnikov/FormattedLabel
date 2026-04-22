@@ -1,9 +1,13 @@
 import Foundation
+#if os(macOS)
+import AppKit
+#elseif os(iOS)
 import UIKit
+#endif
 
-/// FormattedLabel is UILabel what supports formatted text in 2 formats: html tag and custom
+/// FormattedLabel is UILabel/NSTextField what supports formatted text in 2 formats: html tag and custom
 ///
-/// Custom format example: London is <text=\"the\",font=Arial,fontScale=1.1,color=ff0000> <text=\"capital\",fontScale=0.9> of <url=https://www.historic-uk.com/assets/Images/unitedkingdom.png?1390903158>
+/// Custom format example: London is <text=\"the\",font=Arial,fontScale=1.1,color=ff0000> <text=\"capital\",fontScale=0.9> of <url=https://www.historic-uk.com/assets/Images/unitedkingdom.png>
 ///
 /// supported formatters:
 ///     text                    - formatted text;
@@ -18,29 +22,26 @@ import UIKit
 ///     fontScale           - the same with scale;
 ///
 
-open class FormattedLabel: UILabel {
+open class FormattedLabel: SystemLabel {
+
+    // MARK: public interface
 
     /// related to font size space between lines
-    public var linespacing: Float = 0 {
+    public var linespacing: CGFloat = 0 {
         didSet {
-            guard linespacing != oldValue else { return }
-            if notParsedString?.isEmpty == false {
-                _update()
-            }
+            guard linespacing != oldValue, notParsedString?.isEmpty == false else { return }
+            _update()
         }
     }
 
     /// indicates that all links should be underlined and touchable
     public var markLinks: Bool = false {
         didSet {
-
             if markLinks {
-                guard gestureRecognizers?.first(where: { $0 is _HyperlinksTapGestureRecognizer }) == nil else {
-                    return
-                }
+                guard getGestureRecognizers().first(where: { $0 is _HyperlinksTapGestureRecognizer }) == nil else { return }
                 addGestureRecognizer(_HyperlinksTapGestureRecognizer(target: self, action: #selector(hyperlinkTap(gesture:))))
             }else{
-                if let g = gestureRecognizers?.first(where: { $0 is _HyperlinksTapGestureRecognizer }) {
+                if let g = getGestureRecognizers().first(where: { $0 is _HyperlinksTapGestureRecognizer }) {
                     removeGestureRecognizer(g)
                 }
             }
@@ -60,7 +61,7 @@ open class FormattedLabel: UILabel {
         get { notParsedString }
     }
 
-    open override var textColor: UIColor! {
+    open override var textColor: SystemColor! {
         didSet {
             guard textColor != oldValue else { return }
             _baseTextColor = textColor
@@ -68,7 +69,7 @@ open class FormattedLabel: UILabel {
         }
     }
 
-    open override var font: UIFont! {
+    open override var font: SystemFont! {
         set {
             guard baseFont != newValue else { return }
             self.baseFont = newValue
@@ -76,29 +77,35 @@ open class FormattedLabel: UILabel {
                 _update()
             }
         }
-
-        get {
-            baseFont ?? super.font
-        }
+        get { baseFont ?? super.font }
     }
 
-    // private
+    public func modify(update bunch: () -> Void) {
+        isBunchUpdating = true
+        bunch()
+        isBunchUpdating = false
+        _update()
+    }
 
-    var _baseTextColor: UIColor?
-    var baseFont: UIFont?
-    var items: [FormattedLabelAttachment]?
-    var notParsedString: String?
+    // MARK: private
+
+    private var _baseTextColor: SystemColor?
+    private var baseFont: SystemFont?
+    private var items: [FormattedLabelAttachment]?
+    private var notParsedString: String?
+    private var isBunchUpdating = false
 
     @objc
     private
     func hyperlinkTap(gesture: _HyperlinksTapGestureRecognizer) {
-        guard let link = gesture.hyperlink(label: self), let url = URL(string: link) else {
-            return
-        }
+        guard let link = gesture.hyperlink(label: self), let url = URL(string: link) else { return }
         hyperlinkCallback?(url)
     }
 
-    @objc func _update() {
+    @objc
+    private
+    func _update() {
+        guard !isBunchUpdating else { return }
         if let notParsedString = notParsedString {
             self.items = HtmlTagParser.isTagged(text: notParsedString) ?
             HtmlTagParser.parse(originString: notParsedString) :
@@ -106,19 +113,19 @@ open class FormattedLabel: UILabel {
         }else{
             items = []
         }
-
         items?.forEach({ $0.delegate = self })
         buildText()
     }
 
-    @objc func buildText() {
-        let font: UIFont = baseFont ?? .systemFont(ofSize: 17)
+    @objc
+    private
+    func buildText() {
+        guard !isBunchUpdating else { return }
+        let font: SystemFont = baseFont ?? .systemFont(ofSize: 17)
         let colorOfText = _baseTextColor ?? textColor ?? .white
         let string  = NSMutableAttributedString()
         items?.forEach { string.append($0.buildText(baseFont: font, baseTextColor: colorOfText)) }
-
         string.addAttribute(.paragraphStyle, value: paragrarhStyle(font: font), range: .init(location: 0, length: string.length))
-
         if markLinks, let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) {
             let labelText = string.string
             let matches = detector.matches(in: labelText, range: .init(location: 0, length: labelText.count))
@@ -126,12 +133,12 @@ open class FormattedLabel: UILabel {
                 string.addAttributes([.underlineStyle : NSUnderlineStyle.single.rawValue], range: match.range)
             }
         }
-
         attributedText = string
         sizeToFit()
     }
 
-    func paragrarhStyle(font: UIFont) -> NSParagraphStyle {
+    private
+    func paragrarhStyle(font: SystemFont) -> NSParagraphStyle {
         let style = NSMutableParagraphStyle()
         style.alignment = textAlignment
         if linespacing != 0 {
@@ -140,61 +147,10 @@ open class FormattedLabel: UILabel {
         }
         return style
     }
-
 }
 
 extension FormattedLabel: FormattedLabelAttachmentDelegate {
     func attachmentDidLoad(_ attachment: FormattedLabelAttachment) {
         buildText()
-    }
-}
-
-class _HyperlinksTapGestureRecognizer: UITapGestureRecognizer {
-    func hyperlink(label: UILabel) -> String? {
-        guard let attributedText = label.attributedText, attributedText.length > 0 else {
-            return nil
-        }
-
-        let labelSize = label.bounds.size
-        let layoutManager = NSLayoutManager()
-        let textContainer = NSTextContainer(size: .zero)
-        let textStorage = NSTextStorage(attributedString: attributedText)
-        let locationOfTouchInLabel = location(in: label)
-
-        layoutManager.addTextContainer(textContainer)
-        textStorage.addLayoutManager(layoutManager)
-
-        textContainer.lineFragmentPadding = 0
-        textContainer.lineBreakMode = label.lineBreakMode
-        textContainer.maximumNumberOfLines = label.numberOfLines
-        textContainer.size = labelSize
-
-        let textBoundingBox = layoutManager.usedRect(for: textContainer)
-        let textContainerOffset = CGPoint(x: (labelSize.width - textBoundingBox.size.width) * 0.5 - textBoundingBox.origin.x,
-                                          y: (labelSize.height - textBoundingBox.size.height) * 0.5 - textBoundingBox.origin.y)
-        let locationOfTouchInTextContainer = CGPoint(x: locationOfTouchInLabel.x - textContainerOffset.x,
-                                                     y: locationOfTouchInLabel.y - textContainerOffset.y)
-
-        let indexOfCharacter = layoutManager.characterIndex(for: locationOfTouchInTextContainer,
-                                                            in: textContainer,
-                                                            fractionOfDistanceBetweenInsertionPoints: nil)
-
-        let attrPointer = NSRangePointer.allocate(capacity: 1)
-
-        defer {
-            attrPointer.deallocate()
-        }
-
-        let value = attributedText.attribute(NSAttributedString.Key.underlineStyle,
-                                 at: indexOfCharacter,
-                                 effectiveRange: attrPointer)
-
-        guard let value = value as? Int,
-        value == NSUnderlineStyle.single.rawValue
-        else {
-            return nil
-        }
-
-        return (attributedText.string as NSString).substring(with: attrPointer.pointee)
     }
 }

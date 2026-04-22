@@ -1,38 +1,62 @@
 import Foundation
+#if os(iOS)
 import UIKit
+#elseif os(macOS)
+import AppKit
+#endif
 import UrlImageView
 
 let _LeftAngleBracket = "|langbr|"
 let _RightAngleBracket = "|rangbr|"
 
 extension String {
-
     func replacingPlaceholders() -> String {
         replacingOccurrences(of: _LeftAngleBracket, with: "<").replacingOccurrences(of: _RightAngleBracket, with: ">")
     }
-
     func setupPlaceholders() -> String {
         replacingOccurrences(of: "\\<", with: _LeftAngleBracket).replacingOccurrences(of: "\\>", with: _RightAngleBracket)
     }
-
 }
 
-
-extension UIView {
-
-    func snapshot(scale: CGFloat = 0, isOpaque: Bool = false, afterScreenUpdates: Bool = true) -> UIImage? {
-        guard bounds.width > 0, bounds.height > 0 else {
-            return nil
-        }
-        UIGraphicsBeginImageContextWithOptions(bounds.size, isOpaque, scale)
-        drawHierarchy(in: bounds, afterScreenUpdates: afterScreenUpdates)
+extension SystemView {
+    func snapshot() -> SystemImage? {
+#if os(iOS)
+        guard bounds.width > 0, bounds.height > 0 else { return nil }
+        UIGraphicsBeginImageContextWithOptions(bounds.size, false, 0)
+        drawHierarchy(in: bounds, afterScreenUpdates: true)
         let image = UIGraphicsGetImageFromCurrentImageContext()
         UIGraphicsEndImageContext()
         return image
+#elseif os(macOS)
+        guard let rep = bitmapImageRepForCachingDisplay(in: bounds) else { return nil }
+        cacheDisplay(in: bounds, to: rep)
+        let image = NSImage(size: bounds.size)
+        image.addRepresentation(rep)
+        return image
+#endif
     }
 }
 
-extension UIColor {
+#if os(macOS)
+extension NSFont {
+    var lineHeight: CGFloat {
+        get { self.ascender + abs(self.descender) + self.leading }
+        set { }
+    }
+}
+extension NSView {
+    var center: CGPoint {
+        get { .init(x: frame.midX, y: frame.midY) }
+        set {
+            let w = frame.size.width
+            let h = frame.size.height
+            frame = .init(x: newValue.x - w/2, y: newValue.y - h/2, width: w, height: h)
+        }
+    }
+}
+#endif
+
+extension SystemColor {
     convenience init(hex: String) {
         let scanner = Scanner(string: hex)
         scanner.charactersToBeSkipped = CharacterSet.alphanumerics.inverted
@@ -60,90 +84,66 @@ class FormatterParser: NSObject {
     }
 
     class func value(attribute: Attribute, in string: String, range: Range<String.Index>) -> String? {
-
-        if let match = regex(attribute: attribute)?.firstMatch(in: string, options: [], range: NSRange(range, in: string)),
-           let range = Range(match.range, in: string) {
-
-            let valueRange = string.index(range.lowerBound, offsetBy: attribute.rawValue.count + 1)..<string.index(before: range.upperBound)
-
-            var value = String(string[valueRange])
-
-            switch attribute {
-            case .text:
-                value = String(value.dropFirst())
-            default:
-                break
-            }
-
-            return value
+        guard let match = regex(attribute: attribute)?.firstMatch(in: string, options: [], range: NSRange(range, in: string)),
+              let range = Range(match.range, in: string) else {
+            return nil
         }
+        let valueRange = string.index(range.lowerBound, offsetBy: attribute.rawValue.count + 1)..<string.index(before: range.upperBound)
+        var value = String(string[valueRange])
 
-        return nil
+        switch attribute {
+        case .text:
+            value = String(value.dropFirst())
+        default:
+            break
+        }
+        return value
     }
 
     class func parse(originString: String, match: NSTextCheckingResult) -> FormattedLabelAttachment? {
-
         guard let range = Range(match.range, in: originString) else {
             return nil
         }
-
         let tagString = String(originString[originString.index(range.lowerBound, offsetBy: 1)..<range.upperBound])
         let tagRange = tagString.startIndex..<tagString.endIndex
-
         var attributes: [Attribute:String] = [:]
-
         for attribute in Attribute.allCases {
             if let data = value(attribute: attribute, in: tagString, range: tagRange) {
                 attributes[attribute] = data
             }
         }
-
         return .init(attributes: attributes, range: range)
-
     }
 
     class func parse(originString: String) -> [FormattedLabelAttachment] {
-
         var items: [FormattedLabelAttachment] = []
-
         let text = originString.setupPlaceholders()
-
         if let regex = try? NSRegularExpression(pattern: "<[^>]*>", options: []) {
-
             let nsrange = NSRange(text.startIndex..<text.endIndex,
                                   in: text)
-
             regex.enumerateMatches(in: text, options: [], range: nsrange) { (result, _, stop) in
                 guard let match = result, let range = Range(match.range, in: text) else { return }
-
                 if let textItem = parse(originString: text, match: match) {
-
                     if let lastRange = items.last?.range,
                        range.lowerBound >= lastRange.upperBound {
-
                         let itemRange = lastRange.upperBound..<range.lowerBound
                         let item = FormattedLabelAttachment(attributes: [.text : String(text[itemRange])],
                                         range: itemRange)
                         items.append(item)
-
                     }else if range.lowerBound > text.startIndex {
                         let itemRange = text.startIndex..<range.lowerBound
                         let item = FormattedLabelAttachment(attributes: [.text : String(text[itemRange])],
                                         range: itemRange)
                         items.append(item)
                     }
-
                     items.append(textItem)
                 }
-
             }
         }
-
         guard !items.isEmpty else {
             return [FormattedLabelAttachment(attributes: [.text : text],
                             range: text.startIndex..<text.endIndex)]
         }
-
         if let textItem = items.last,
            text.endIndex > textItem.range.upperBound {
 
@@ -152,7 +152,6 @@ class FormatterParser: NSObject {
                             range: itemRange)
             items.append(item)
         }
-
         return items
     }
 }
@@ -193,7 +192,6 @@ protocol FormattedLabelAttachmentDelegate: AnyObject {
 }
 
 class FormattedLabelAttachment {
-
     let attributes: [Attribute:String]
     let range: Range<String.Index>
     weak var delegate: FormattedLabelAttachmentDelegate?
@@ -204,11 +202,11 @@ class FormattedLabelAttachment {
         self.range = range
     }
 
-    private var image: UIImage?
+    private var image: SystemImage?
 
     private struct TextStyle {
-        let font: UIFont
-        let textColor: UIColor
+        let font: SystemFont
+        let textColor: SystemColor
         let underlineStyle: NSUnderlineStyle?
 
         var attributes: [NSAttributedString.Key:Any] {
@@ -222,13 +220,11 @@ class FormattedLabelAttachment {
         }
     }
 
-    func buildText(baseFont: UIFont, baseTextColor: UIColor) -> NSAttributedString {
-
-        let image: UIImage?
-
+    func buildText(baseFont: SystemFont, baseTextColor: SystemColor) -> NSAttributedString {
+        let image: SystemImage?
         if let i = self.image {
             image = i
-        }else if let name = attributes[.image], let assetImage = UIImage(named: name) {
+        }else if let name = attributes[.image], let assetImage = SystemImage(named: name) {
             image = assetImage
         }else if let url = attributes[.url] {
             if let loadedImage = ImageLoader.loadedImage(url: url) {
@@ -246,22 +242,20 @@ class FormattedLabelAttachment {
         }else{
             image = nil
         }
-
         let string = NSMutableAttributedString()
-
-        let font: UIFont
+        let font: SystemFont
         var fontSize = baseFont.pointSize
-        let color: UIColor
+        let color: SystemColor
         let underlineStyle: NSUnderlineStyle?
 
         if let scale = floatValue(attribute: .fontScale) ?? floatValue(attribute: .scale) {
             fontSize *= CGFloat(scale)
         }
 
-        if let fontName = attributes[.font], let f = UIFont(name: fontName, size: fontSize) {
+        if let fontName = attributes[.font], let f = SystemFont(name: fontName, size: fontSize) {
             font = f
         }else{
-            if fontSize != baseFont.pointSize, let f = UIFont(name: baseFont.fontName, size: fontSize) {
+            if fontSize != baseFont.pointSize, let f = SystemFont(name: baseFont.fontName, size: fontSize) {
                 font = f
             }else{
                 font = baseFont
@@ -269,7 +263,7 @@ class FormattedLabelAttachment {
         }
 
         if let hex = attributes[.color] {
-            color = UIColor(hex: hex)
+            color = SystemColor(hex: hex)
         }else{
             color = baseTextColor
         }
@@ -304,37 +298,32 @@ class FormattedLabelAttachment {
         }else{
             buildRawTextAndImage(image: image, style: .init(font: font, textColor: color, underlineStyle: underlineStyle)).forEach({ string.append($0) })
         }
-
         return string
     }
 
     private func floatValue(attribute: Attribute) -> Float? {
-        if let value = attributes[attribute] {
-            if #available(iOS 13.0, *) {
-                return Scanner(string: value).scanFloat()
-            } else {
-                var fv: Float = 0
-                Scanner(string: value).scanFloat(&fv)
-                return fv
-            }
+        guard let value = attributes[attribute] else { return nil }
+        if #available(iOS 13.0, macOS 10.15, *) {
+            return Scanner(string: value).scanFloat()
+        } else {
+            var fv: Float = 0
+            Scanner(string: value).scanFloat(&fv)
+            return fv
         }
-        return nil
     }
 
     private func boolValue(attribute: Attribute) -> Bool {
-        if let value = attributes[attribute] {
-            if #available(iOS 13.0, *) {
-                return Scanner(string: value).scanInt() == 1
-            } else {
-                var iv: Int = 0
-                Scanner(string: value).scanInt(&iv)
-                return iv == 1
-            }
+        guard let value = attributes[attribute] else { return false }
+        if #available(iOS 13.0, macOS 10.15, *) {
+            return Scanner(string: value).scanInt() == 1
+        } else {
+            var iv: Int = 0
+            Scanner(string: value).scanInt(&iv)
+            return iv == 1
         }
-        return false
     }
 
-    private func imageAttachment(image: UIImage, font: UIFont) -> NSTextAttachment {
+    private func imageAttachment(image: SystemImage, font: SystemFont) -> NSTextAttachment {
         let attachment = NSTextAttachment()
         attachment.image = image
         let attachSize = CGSize(width: image.size.width*font.lineHeight/image.size.height, height: font.lineHeight)
@@ -349,29 +338,26 @@ class FormattedLabelAttachment {
         return attachment
     }
 
-    private func buildRawTextAndImage(image: UIImage?, style: TextStyle) -> [NSAttributedString] {
-
+    private func buildRawTextAndImage(image: SystemImage?, style: TextStyle) -> [NSAttributedString] {
         var strings: [NSAttributedString] = []
-
         if let text = attributes[.text] {
             strings.append(NSAttributedString(string: text.replacingPlaceholders(),
                                               attributes: style.attributes))
         }
-
         if let image = image {
             strings.append(.init(attachment: imageAttachment(image: image, font: style.font)))
         }
-
         return strings
     }
 
-    private func buildTextOnImage(image: UIImage, font: UIFont, textColor: UIColor) -> [NSAttributedString] {
-
-        let imageView = UIImageView(image: image)
+    private func buildTextOnImage(image: SystemImage, font: SystemFont, textColor: SystemColor) -> [NSAttributedString] {
+        let imageView = SystemImageView(image: image)
+#if os(iOS)
         imageView.contentMode = .scaleAspectFit
+#endif
         let imageScale = CGFloat(floatValue(attribute: .imageScale) ?? 1/0.7)
         let frame = CGRect(x: 0, y: 0, width: imageView.bounds.width*1/imageScale, height: imageView.bounds.height)
-        let valueLabel = UILabel(frame: frame)
+        let valueLabel = SystemLabel(frame: frame)
         valueLabel.center = .init(x: imageView.bounds.width/2, y: imageView.bounds.height/2)
         valueLabel.textAlignment = .center
         valueLabel.textColor = textColor
@@ -379,15 +365,16 @@ class FormattedLabelAttachment {
             valueLabel.text = text.replacingPlaceholders()
         }
         valueLabel.font = font
+#if os(iOS)
         valueLabel.adjustsFontSizeToFitWidth = true
         valueLabel.baselineAdjustment = .alignCenters
+#endif
         valueLabel.backgroundColor = .clear
         imageView.addSubview(valueLabel)
 
         if let att_image = imageView.snapshot() {
             return [NSAttributedString(attachment: imageAttachment(image: att_image, font: font))]
         }
-
         return []
     }
 }
